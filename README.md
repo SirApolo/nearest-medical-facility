@@ -1,4 +1,4 @@
-# Healthcare Spatial Intelligence API - Brazil (FastAPI + PostGIS + PySUS)
+# Healthcare Spatial Intelligence API - Brazil (FastAPI + PostGIS)
 
 A professional Backend API built with **FastAPI** and **PostgreSQL/PostGIS**, tailored for the Brazilian healthcare sector. The platform offers spatial queries and integration with Brazilian open health data (DATASUS).
 
@@ -10,7 +10,7 @@ This platform ingests, stores, and serves geospatial data from Brazilian healthc
 ├── app
 │   ├── api          # FastAPI routers and endpoints
 │   ├── db           # Database connection and session
-│   ├── ingestion    # Data loaders and PySUS integration
+│   ├── ingestion    # Data loaders and raw CNES S3 integration
 │   ├── models       # SQLAlchemy ORM and GeoAlchemy2 models
 │   ├── schemas      # Pydantic models for request/response serialization
 │   └── main.py      # Entry point for the FastAPI application
