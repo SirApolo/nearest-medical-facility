@@ -11,6 +11,11 @@ services:
       - "5432:5432"
     volumes:
       - postgis_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d healthcare_db"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
 
   api:
     build: .
@@ -19,7 +24,8 @@ services:
     environment:
       DATABASE_URL: postgresql://postgres:password@db:5432/healthcare_db
     depends_on:
-      - db
+      db:
+        condition: service_healthy
     volumes:
       - ./app:/code/app
 
