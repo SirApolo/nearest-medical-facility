@@ -19,7 +19,7 @@ def clean_coordinates(val):
 def fetch_and_load_data(state: str, year: int, month: int):
     print(f"Downloading CNES data for {state} ({year}-{month:02d})... (This might take a while)")
     # 'ST' group stands for Estabelecimentos de Saúde
-    df = CNES.download('ST', state=state, year=year, month=month)
+    df = CNES.download(group='ST', states=state, years=year, months=month).to_dataframe()
     print(f"Downloaded {len(df)} records. Processing data...")
     
     # Identify dynamic columns from pysus return dataframe
