@@ -7,6 +7,20 @@ import urllib.request
 import zipfile
 import os
 
+# --- Configuration Constants ---
+CNES_S3_URL = "https://s3.sa-east-1.amazonaws.com/ckan.saude.gov.br/CNES/cnes_estabelecimentos_csv.zip"
+LOCAL_ZIP_PATH = "/tmp/cnes_estabelecimentos_csv.zip"
+CSV_CHUNK_SIZE = 50000
+WGS84_SRID = 4326
+
+# --- Data Columns Mapping ---
+COL_CNES = 'CO_CNES'
+COL_NAME = 'NO_FANTASIA'
+COL_STATE = 'CO_UF'
+COL_CITY = 'NO_BAIRRO'
+COL_LAT = 'NU_LATITUDE'
+COL_LON = 'NU_LONGITUDE'
+
 def clean_coordinates(val):
     try:
         if pd.isna(val) or val == 'NaN' or str(val).strip() == '':
@@ -21,14 +35,11 @@ def clean_coordinates(val):
         return None
 
 def fetch_and_load_data(state_filter=None):
-    url = "https://s3.sa-east-1.amazonaws.com/ckan.saude.gov.br/CNES/cnes_estabelecimentos_csv.zip"
-    zip_path = "/tmp/cnes_estabelecimentos_csv.zip"
-    
     print(f"Downloading CNES open data from AWS S3... (This might take a while)")
     try:
         # Create tmp dir if not exists inside container
-        os.makedirs(os.path.dirname(zip_path), exist_ok=True)
-        urllib.request.urlretrieve(url, zip_path)
+        os.makedirs(os.path.dirname(LOCAL_ZIP_PATH), exist_ok=True)
+        urllib.request.urlretrieve(CNES_S3_URL, LOCAL_ZIP_PATH)
     except Exception as e:
         print(f"Failed to download the data: {e}")
         return
@@ -39,40 +50,37 @@ def fetch_and_load_data(state_filter=None):
     records_saved = 0
     records_skipped = 0
     
-    # User requested schema mapping:
-    # CO_CNES -> cnes_id, NO_FANTASIA -> name, CO_UF -> state, NO_BAIRRO -> city, NU_LATITUDE -> latitude, NU_LONGITUDE -> longitude
-    cols_to_use = ['CO_CNES', 'NO_FANTASIA', 'CO_UF', 'NO_BAIRRO', 'NU_LATITUDE', 'NU_LONGITUDE']
+    # User requested schema mapping converted to usage columns
+    cols_to_use = [COL_CNES, COL_NAME, COL_STATE, COL_CITY, COL_LAT, COL_LON]
     
     print("Extracting and processing the CSV file in chunks...")
     try:
-        with zipfile.ZipFile(zip_path, 'r') as z:
+        with zipfile.ZipFile(LOCAL_ZIP_PATH, 'r') as z:
             csv_filename = [f for f in z.namelist() if f.endswith('.csv')][0]
             with z.open(csv_filename) as f:
                 # Read in chunks to prevent memory issues for the national DB
-                chunksize = 50000
-                for count, chunk in enumerate(pd.read_csv(f, sep=';', encoding='latin1', dtype=str, usecols=lambda c: c in cols_to_use, chunksize=chunksize)):
+                for count, chunk in enumerate(pd.read_csv(f, sep=';', encoding='latin1', dtype=str, usecols=lambda c: c in cols_to_use, chunksize=CSV_CHUNK_SIZE)):
                     print(f"Processing chunk {count+1}...")
                     
                     if state_filter:
                         # Optional: filter by UF code. For 'PR', the CO_UF is 41, SP is 35.
-                        # Wait, the user said they might pass strings. For simplicity, just filter later or omit filter
                         pass
                     
                     for _, row in chunk.iterrows():
                         try:
-                            cnes_id = str(row.get('CO_CNES', '')).strip()
+                            cnes_id = str(row.get(COL_CNES, '')).strip()
                             if not cnes_id or cnes_id == 'nan':
                                 continue
                                 
-                            name = str(row.get('NO_FANTASIA', 'Unknown Unit'))
+                            name = str(row.get(COL_NAME, 'Unknown Unit'))
                             if pd.isna(name) or name == 'nan':
                                 name = 'Unknown Unit'
                                 
-                            state = str(row.get('CO_UF', 'UNK')).strip()
-                            city = str(row.get('NO_BAIRRO', 'Unknown')).strip()
+                            state = str(row.get(COL_STATE, 'UNK')).strip()
+                            city = str(row.get(COL_CITY, 'Unknown')).strip()
                             
-                            lat_raw = row.get('NU_LATITUDE')
-                            lon_raw = row.get('NU_LONGITUDE')
+                            lat_raw = row.get(COL_LAT)
+                            lon_raw = row.get(COL_LON)
                             
                             lat = clean_coordinates(lat_raw)
                             lon = clean_coordinates(lon_raw)
@@ -85,7 +93,7 @@ def fetch_and_load_data(state_filter=None):
                                 
                             geom = None
                             if lat is not None and lon is not None:
-                                geom = WKTElement(f'POINT({lon} {lat})', srid=4326)
+                                geom = WKTElement(f'POINT({lon} {lat})', srid=WGS84_SRID)
                                 
                             unit = HealthcareUnit(
                                 cnes_id=cnes_id,
@@ -114,8 +122,8 @@ def fetch_and_load_data(state_filter=None):
         db.rollback()
     finally:
         db.close()
-        if os.path.exists(zip_path):
-            os.remove(zip_path)
+        if os.path.exists(LOCAL_ZIP_PATH):
+            os.remove(LOCAL_ZIP_PATH)
             
     print(f"Ingestion complete. Saved: {records_saved}, Skipped (existing): {records_skipped}")
 

@@ -2,6 +2,8 @@ from sqlalchemy import Column, Integer, String, Float
 from geoalchemy2 import Geometry
 from app.db.database import Base
 
+WGS84_SRID = 4326
+
 class HealthcareUnit(Base):
     __tablename__ = "healthcare_units"
 
@@ -12,4 +14,4 @@ class HealthcareUnit(Base):
     city = Column(String, nullable=False)
     latitude = Column(Float, nullable=True)
     longitude = Column(Float, nullable=True)
-    geom = Column(Geometry(geometry_type='POINT', srid=4326))
+    geom = Column(Geometry(geometry_type='POINT', srid=WGS84_SRID))

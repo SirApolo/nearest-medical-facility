@@ -3,8 +3,11 @@ from sqlalchemy.orm import Session
 from sqlalchemy import func, cast
 from geoalchemy2 import Geography
 from app.db.database import get_db
-from app.models.unit import HealthcareUnit
+from app.models.unit import HealthcareUnit, WGS84_SRID
 from app.schemas.unit import HealthcareUnitResponse
+
+DEFAULT_SEARCH_RADIUS_METERS = 5000
+MAX_RESULTS_LIMIT = 50
 
 router = APIRouter(prefix="/units", tags=["units"])
 
@@ -12,7 +15,7 @@ router = APIRouter(prefix="/units", tags=["units"])
 def get_nearby_units(
     lat: float = Query(..., description="Latitude of the center point"),
     lon: float = Query(..., description="Longitude of the center point"),
-    radius: float = Query(5000, description="Search radius in meters"),
+    radius: float = Query(DEFAULT_SEARCH_RADIUS_METERS, description="Search radius in meters"),
     db: Session = Depends(get_db)
 ):
     """
@@ -20,7 +23,7 @@ def get_nearby_units(
     SRID 4326 is cast to Geography for meter-based distance calculations.
     """
     # Create point WKT
-    point = f'SRID=4326;POINT({lon} {lat})'
+    point = f'SRID={WGS84_SRID};POINT({lon} {lat})'
     
     # Query using geography cast for accurate distance measurements in meters
     query = db.query(HealthcareUnit).filter(
@@ -29,7 +32,7 @@ def get_nearby_units(
             func.ST_GeographyFromText(point),
             radius
         )
-    ).limit(50).all()
+    ).limit(MAX_RESULTS_LIMIT).all()
     
     return query
 
