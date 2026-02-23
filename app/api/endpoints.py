@@ -1,6 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
-from sqlalchemy import func
+from sqlalchemy import func, cast
+from geoalchemy2 import Geography
 from app.db.database import get_db
 from app.models.unit import HealthcareUnit
 from app.schemas.unit import HealthcareUnitResponse
@@ -24,8 +25,8 @@ def get_nearby_units(
     # Query using geography cast for accurate distance measurements in meters
     query = db.query(HealthcareUnit).filter(
         func.ST_DWithin(
-            func.cast(HealthcareUnit.geom, func.geography()),
-            func.cast(func.ST_GeomFromEWKT(point), func.geography()),
+            cast(HealthcareUnit.geom, Geography),
+            func.ST_GeographyFromText(point),
             radius
         )
     ).limit(50).all()

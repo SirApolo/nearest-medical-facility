@@ -21,12 +21,12 @@ This platform ingests, stores, and serves geospatial data from Brazilian healthc
 ```
 
 ## Data Source
-The data ingestion pipeline integrates seamlessly with Brazil's **DATASUS** portal using the [pysus](https://github.com/AlertaDengue/PySUS) Python library.
+The data ingestion pipeline integrates seamlessly with Brazil's **DATASUS** open data portal.
 
-The `app/ingestion/cnes_loader.py` script specifically connects to the national government's FTP servers to retrieve ST (Estabelecimentos/Facilities) datasets for specific states and dates. It parses the data using `pandas`, cleans coordinate anomalies, and seamlessly feeds the local PostGIS instance. No manual CSV downloads are needed.
+The `app/ingestion/cnes_loader.py` script specifically connects to the official AWS S3 bucket (`s3.sa-east-1.amazonaws.com/ckan.saude.gov.br`) to retrieve the most recent complete national `cnes_estabelecimentos_csv.zip` dataset. It streams the archive, parses the data using `pandas` in efficient memory chunks, maps the necessary columns (`CO_CNES`, `NO_FANTASIA`, `CO_UF`, `NO_BAIRRO`, `NU_LATITUDE`, `NU_LONGITUDE`), cleans coordinate anomalies, and seamlessly feeds the local PostGIS instance.
 
 ## Technical Challenges
-* **Large-scale Geographical Data Processing:** Healthcare data from DATASUS comprises hundreds of thousands of records. Processing strings into spatial coordinates required efficient bulk insertions and fault tolerance to avoid halting upon encountering missing coordinates.
+* **Large-scale Geographical Data Processing:** Healthcare data from DATASUS comprises hundreds of thousands of records. Processing strings into spatial coordinates required efficient bulk insertions and chunked memory processing using `pandas` to avoid RAM exhaustion.
 * **Spatial Reference System (SRID 4326):** Ensuring the correct projection system is critical. We utilized the **WGS 84 (SRID 4326)** standard to align our database logic with standard GPS latitude and longitude parameters.
 * **Accuracy via Geography Casting:** To ensure `ST_DWithin` calculates distances in exact meters (rather than raw degrees), we enforce dynamic casts to PostGIS `geography` types during query execution (`func.cast(geom, func.geography())`).
 
@@ -43,13 +43,17 @@ docker-compose up --build -d
 Your API is now available at [http://localhost:8000/docs](http://localhost:8000/docs).
 
 ### 2. Run the Data Ingestion Script (CNES Loader)
-With both containers running, dispatch the extraction script from inside the API container to download facility data for a specified state (e.g., `PR` for Paraná):
+With both containers running, dispatch the extraction script from inside the API container to automatically download and ingest the national facility data:
 
 ```bash
-docker-compose exec api python -m app.ingestion.cnes_loader --state PR --year 2023 --month 8
+# Load all national data
+docker-compose exec api python -m app.ingestion.cnes_loader
+
+# Or optionally, filter by state code (e.g., 41 for PR)
+docker-compose exec api python -m app.ingestion.cnes_loader --state 41
 ```
 
-This will download the data, parse coordinates into PostGIS geometries, and insert them into the `healthcare_units` table.
+This will download the national data from the official S3 bucket, parse coordinates into PostGIS geometries, and insert them into the `healthcare_units` table.
 
 ## API Endpoints
 
