@@ -14,5 +14,5 @@ app = FastAPI(
 app.include_router(endpoints.router)
 
 @app.get("/")
-def read_root():
+def read_root() -> dict[str, str]:
     return {"message": "Welcome to Healthcare Spatial Intelligence API - Brazil"}

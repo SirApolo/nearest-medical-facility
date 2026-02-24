@@ -1,11 +1,14 @@
-import pandas as pd
-from sqlalchemy.orm import Session
-from app.db.database import SessionLocal, engine
-from app.models.unit import HealthcareUnit
-from geoalchemy2.elements import WKTElement
+import os
 import urllib.request
 import zipfile
-import os
+from typing import Any
+
+import pandas as pd
+from geoalchemy2.elements import WKTElement
+from sqlalchemy.orm import Session
+
+from app.db.database import SessionLocal, engine
+from app.models.unit import HealthcareUnit
 
 # --- Configuration Constants ---
 CNES_S3_URL = "https://s3.sa-east-1.amazonaws.com/ckan.saude.gov.br/CNES/cnes_estabelecimentos_csv.zip"
@@ -21,7 +24,7 @@ COL_CITY = 'NO_BAIRRO'
 COL_LAT = 'NU_LATITUDE'
 COL_LON = 'NU_LONGITUDE'
 
-def clean_coordinates(val):
+def clean_coordinates(val: Any) -> float | None:
     try:
         if pd.isna(val) or val == 'NaN' or str(val).strip() == '':
             return None
@@ -34,7 +37,7 @@ def clean_coordinates(val):
     except (ValueError, TypeError):
         return None
 
-def fetch_and_load_data(state_filter=None):
+def fetch_and_load_data(state_filter: str | None = None) -> None:
     print(f"Downloading CNES open data from AWS S3... (This might take a while)")
     try:
         # Create tmp dir if not exists inside container

@@ -17,7 +17,7 @@ def get_nearby_units(
     lon: float = Query(..., description="Longitude of the center point"),
     radius: float = Query(DEFAULT_SEARCH_RADIUS_METERS, description="Search radius in meters"),
     db: Session = Depends(get_db)
-):
+) -> list[HealthcareUnitResponse]:
     """
     Find healthcare units within a specific radius using PostGIS ST_DWithin.
     SRID 4326 is cast to Geography for meter-based distance calculations.
@@ -37,7 +37,7 @@ def get_nearby_units(
     return query
 
 @router.get("/{cnes_id}", response_model=HealthcareUnitResponse)
-def get_unit(cnes_id: str, db: Session = Depends(get_db)):
+def get_unit(cnes_id: str, db: Session = Depends(get_db)) -> HealthcareUnitResponse:
     """
     Get a specific healthcare unit by its CNES ID.
     """
