@@ -1,61 +1,82 @@
-# Healthcare Spatial Intelligence API - Brazil (FastAPI + PostGIS)
+# Healthcare Spatial Intelligence API - Brazil
 
-A professional Backend API built with **FastAPI** and **PostgreSQL/PostGIS**, tailored for the Brazilian healthcare sector. The platform offers spatial queries and integration with Brazilian open health data (DATASUS).
+## 1. Project Overview
+The Healthcare Spatial Intelligence API is a professional, high-performance backend system built to process, store, and serve geospatial data related to Brazilian healthcare facilities. It integrates directly with Brazil's official health data portal (DATASUS), specifically targeting the National Register of Healthcare Facilities (CNES). Through advanced spatial queries, this platform allows clients to effortlessly locate nearby hospitals, clinics, and health units within a specified radius.
 
-## Overview
-This platform ingests, stores, and serves geospatial data from Brazilian healthcare facilities (CNES - Cadastro Nacional de Estabelecimentos de Saúde). It easily finds nearby hospitals and units within a given radius by utilizing advanced topological functions on PostGIS.
+## 2. Tech Stack
+This project leverages a modern, robust technology stack, engineered for high performance, spatial accuracy, and maintainability:
 
-## Project Structure
+*   **FastAPI:** The core web framework. Chosen for its extreme speed, asynchronous capabilities, and automatic generation of interactive API documentation (Swagger UI).
+*   **PostgreSQL & PostGIS:** The relational database system, extended with PostGIS for advanced geospatial capabilities. It stores healthcare facilities as accurate geographical points (SRID 4326), enabling precise, meter-based radius searches.
+*   **Docker & Docker Compose:** Containerization tools used to isolate environments, ensure reproducible builds, and seamlessly orchestrate both the API and Database services.
+*   **SQLAlchemy & GeoAlchemy2:** The Object-Relational Mapping (ORM) layer, ensuring secure and pythonic interactions with spatial data.
+*   **Pandas:** Used in the ETL pipeline for efficient, memory-safe data extraction and transformation of large CSV datasets.
+*   **Python 3.10+:** Leveraging modern language features, strict built-in type hints (`list`, `dict`, `| None`), and adherence to **PEP 8** coding standards for clean, maintainable, and enterprise-grade code.
+
+## 3. Project Structure
+The repository is modularized for scalable API expansion and clear separation of concerns:
+
 ```text
 ├── app
-│   ├── api          # FastAPI routers and endpoints
-│   ├── db           # Database connection and session
-│   ├── ingestion    # Data loaders and raw CNES S3 integration
-│   ├── models       # SQLAlchemy ORM and GeoAlchemy2 models
-│   ├── schemas      # Pydantic models for request/response serialization
-│   └── main.py      # Entry point for the FastAPI application
-├── docker-compose.yml
-├── Dockerfile
+│   ├── api          # FastAPI routers and RESTful endpoints
+│   ├── db           # Database connection engines and session generation
+│   ├── ingestion    # Data loaders, chunked processing, and raw CNES AWS S3 integration
+│   ├── models       # SQLAlchemy ORM and GeoAlchemy2 spatial models
+│   ├── schemas      # Pydantic models for request/response serialization (strict parsing)
+│   └── main.py      # Entry point for the FastAPI application server
+├── docker-compose.yml # Orchestration configuration for local development
+├── Dockerfile       # Container blueprint for the FastAPI server build
 ├── requirements.txt
 └── README.md
 ```
 
-## Data Source
-The data ingestion pipeline integrates seamlessly with Brazil's **DATASUS** open data portal.
+## 4. Architecture Diagram Description
+*Note: A visual diagram could be placed here. Below is the architectural flow description.*
 
-The `app/ingestion/cnes_loader.py` script specifically connects to the official AWS S3 bucket (`s3.sa-east-1.amazonaws.com/ckan.saude.gov.br`) to retrieve the most recent complete national `cnes_estabelecimentos_csv.zip` dataset. It streams the archive, parses the data using `pandas` in efficient memory chunks, maps the necessary columns (`CO_CNES`, `NO_FANTASIA`, `CO_UF`, `NO_BAIRRO`, `NU_LATITUDE`, `NU_LONGITUDE`), cleans coordinate anomalies, and seamlessly feeds the local PostGIS instance.
+1.  **Data Source (DATASUS S3):** The official Brazilian health open data portal hosts the raw CNES CSV datasets directly on AWS S3.
+2.  **ETL Pipeline (Ingestion Engine):** A manually triggered Python script (`app/ingestion/cnes_loader.py`) streams the zipped dataset, cleans anomalies, transforms coordinate systems, and maps the schema dynamically using `pandas`.
+3.  **Database Layer (PostGIS):** Transformed geographic entities are digested into the `healthcare_units` relational table as WKT `POINT` geometries.
+4.  **Application Layer (FastAPI):** Exposes RESTful endpoints leveraging dependency injection (session management) to execute fast spatial SQL queries.
+5.  **Client/Consumer:** Front-end applications, mobile apps, or data scientists consume the API, receiving clean, serialized JSON payloads (via Pydantic).
 
-## Technical Challenges
-* **Large-scale Geographical Data Processing:** Healthcare data from DATASUS comprises hundreds of thousands of records. Processing strings into spatial coordinates required efficient bulk insertions and chunked memory processing using `pandas` to avoid RAM exhaustion.
-* **Spatial Reference System (SRID 4326):** Ensuring the correct projection system is critical. We utilized the **WGS 84 (SRID 4326)** standard to align our database logic with standard GPS latitude and longitude parameters.
-* **Accuracy via Geography Casting:** To ensure `ST_DWithin` calculates distances in exact meters (rather than raw degrees), we enforce dynamic casts to PostGIS `geography` types during query execution (`func.cast(geom, func.geography())`).
+## 5. How to Run with Docker Compose
+The application is entirely containerized for a friction-free development and deployment experience.
 
-## How to run
-
-### 1. Start the PostGIS Database and API
-The application is entirely containerized. To fire up both the PostgreSQL engine and the FastAPI server, simply use Docker Compose:
-
+### Step 1: Spin up the Services
+Build and start the PostgreSQL (PostGIS) database and the FastAPI web server in detached mode:
 ```bash
-# Build and run the containers in detached mode
 docker-compose up --build -d
 ```
+*The API interactive documentation will be instantly available at [http://localhost:8000/docs](http://localhost:8000/docs).*
 
-Your API is now available at [http://localhost:8000/docs](http://localhost:8000/docs).
-
-### 2. Run the Data Ingestion Script (CNES Loader)
-With both containers running, dispatch the extraction script from inside the API container to automatically download and ingest the national facility data:
-
+### Step 2: Trigger the ETL Pipeline
+With the containers running, execute the data ingestion script inside the API container to extract, transform, and load real national facilities data into the database:
 ```bash
-# Load all national data
+# Ingest all national health units
 docker-compose exec api python -m app.ingestion.cnes_loader
 
-# Or optionally, filter by state code (e.g., 41 for PR)
+# Or optionally, ingestion by a specific state code (e.g., 41 for Paraná)
 docker-compose exec api python -m app.ingestion.cnes_loader --state 41
 ```
 
-This will download the national data from the official S3 bucket, parse coordinates into PostGIS geometries, and insert them into the `healthcare_units` table.
+## 6. Key Features & Best Practices
 
-## API Endpoints
+*   **Geospatial Queries (ST_DWithin):** Utilizes `geoalchemy2` and PostGIS to perform highly accurate radius searches. By casting `geometry` to `geography` types during query execution, distances are calculated dynamically in exact meters rather than raw continuous degrees.
+*   **Automated ETL Pipeline:** The data loader is designed to prevent RAM exhaustion when handling hundreds of thousands of DATASUS records. It parses large CSV streams using controlled, dynamic memory chunks.
+*   **Professional Code Standards:**
+    *   **Strict Type Hinting:** Comprehensive usage of Python 3.10+ native type hints (e.g., `list`, `float | None`) to catch errors at compile-time and improve IDE intellisense.
+    *   **PEP 8 Compliance:** Strictly follows Python Enhancement Proposal 8 for clean code formatting and structured imports.
+    *   **Data Serialization/Validation:** Pydantic schemas enforce strict input validations and output payload structures.
+    *   **Dependency Injection:** Secure and decoupled database session generation (`get_db`) injected directly into FastAPI router dependencies.
 
-- `GET /units/nearby?lat={latitude}&lon={longitude}&radius={meters}`: Finds healthcare units near the specified location utilizing the ST_DWithin function.
-- `GET /units/{cnes_id}`: Retrieves comprehensive details about a specific facility.
+## 7. API Endpoints
+
+The API interactive Swagger UI documentation is available at `/docs`. Below is a quick manual reference:
+
+*   **`GET /units/nearby`**
+    *   **Purpose:** Finds healthcare units near the specified location utilizing the `ST_DWithin` function.
+    *   **Parameters:** `lat` (latitude), `lon` (longitude), `radius` (search radius in exact meters).
+    *   **Returns:** A serialized list of strict JSON objects matching the `HealthcareUnitResponse` Pydantic schema.
+*   **`GET /units/{cnes_id}`**
+    *   **Purpose:** Retrieves comprehensive details about a specific facility utilizing the unique CNES ID index.
+    *   **Returns:** A single strict JSON object representing the unit's metadata and exact geographic properties.
